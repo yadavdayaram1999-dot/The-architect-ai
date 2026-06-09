@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Architect AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#0B132B] text-white font-sans min-h-screen flex flex-col items-center p-4">
+    <div class="w-full max-w-md bg-[#1C2541] rounded-3xl p-6 shadow-2xl border border-[#3A506B] space-y-6 mt-4">
+        <div class="text-center">
+            <h1 class="text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">The Architect AI</h1>
+            <p class="text-xs text-gray-400 mt-1">100% Accurate 3D Render</p>
+        </div>
+        <div id="dropzone" class="border-2 border-dashed border-[#3A506B] rounded-2xl p-6 flex flex-col items-center justify-center bg-[#0B132B] cursor-pointer hover:border-cyan-400 transition">
+            <input type="file" id="fileInput" accept="image/*" class="hidden">
+            <div id="uploadStatus" class="text-center space-y-2">
+                <span class="text-3xl">📁</span>
+                <p class="text-sm font-semibold text-gray-300">UPLOAD 2D LAYOUT PLAN</p>
+                <p class="text-xs text-gray-500">CLICK TO BROWSE FILES</p>
+            </div>
+        </div>
+        <button id="promptBtn" class="w-full bg-blue-900/40 border border-blue-500/50 text-cyan-400 py-3 rounded-xl font-medium text-sm flex items-center justify-center gap-2 hover:bg-blue-900/60 transition shadow-lg hidden">
+            🪄 AI Auto-Write Perfect Prompt
+        </button>
+        <div id="promptContainer" class="space-y-2 hidden">
+            <label class="text-xs font-bold tracking-wide text-gray-400">ARCHITECTURAL PROMPT</label>
+            <textarea id="promptInput" rows="3" class="w-full bg-[#0B132B] border border-[#3A506B] rounded-xl p-3 text-sm text-gray-200 focus:outline-none focus:border-cyan-400" placeholder="Describe your dream 3D render..."></textarea>
+        </div>
+        <button id="generateBtn" class="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-4 rounded-xl font-bold text-base hover:opacity-90 transition shadow-lg flex items-center justify-center gap-2 hidden">
+            Generate 3D View 🚀
+        </button>
+        <div id="statusContainer" class="text-center space-y-2 hidden">
+            <p id="statusText" class="text-xs text-cyan-400 font-mono tracking-widest animate-pulse">⏳ AI ENGINE IS PROCESSING...</p>
+            <p id="subStatusText" class="text-sm font-medium text-gray-300">Connecting to AI backend...</p>
+        </div>
+        <div id="resultContainer" class="hidden space-y-4">
+            <div class="border border-[#3A506B] rounded-2xl overflow-hidden bg-[#0B132B]">
+                <img id="outputImage" class="w-full h-auto" src="" alt="AI 3D Render">
+            </div>
+            <a id="downloadBtn" href="" download="3d-render.jpg" class="w-full bg-green-600 text-white py-3 rounded-xl font-bold text-center block hover:bg-green-500 transition">
+                📥 Download 3D Render
+            </a>
+        </div>
+    </div>
+    <script>
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadStatus = document.getElementById('uploadStatus');
+        const promptBtn = document.getElementById('promptBtn');
+        const promptContainer = document.getElementById('promptContainer');
+        const promptInput = document.getElementById('promptInput');
+        const generateBtn = document.getElementById('generateBtn');
+        const statusContainer = document.getElementById('statusContainer');
+        const subStatusText = document.getElementById('subStatusText');
+        const resultContainer = document.getElementById('resultContainer');
+        const outputImage = document.getElementById('outputImage');
+        const downloadBtn = document.getElementById('downloadBtn');
+        let base64Image = "";
+        dropzone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', handleFile);
+        function handleFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            uploadStatus.innerHTML = `<span class="text-3xl">✅</span><p class="text-sm font-mono text-cyan-400">${file.name}</p><p class="text-xs text-gray-500">BLUEPRINT SUCCESSFULLY LOADED</p>`;
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                base64Image = reader.result;
+                promptBtn.classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+        promptBtn.addEventListener('click', () => {
+            promptInput.value = "Hyper-realistic architectural render, modern eco-villa, concrete and glass facade, accurate to blueprint scale, evening golden hour lighting, 8k resolution, photorealistic.";
+            promptContainer.classList.remove('hidden');
+            generateBtn.classList.remove('hidden');
+            promptBtn.classList.add('hidden');
+        });
+        generateBtn.addEventListener('click', async () => {
+            if (!base64Image) return;
+            generateBtn.classList.add('hidden');
+            statusContainer.classList.remove('hidden');
+            resultContainer.classList.add('hidden');
+            try {
+                const res = await fetch('/api/api-render', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: base64Image, prompt: promptInput.value })
+                });
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+                checkStatus(data.id);
+            } catch (err) {
+                alert("Error: " + err.message);
+                resetUI();
+            }
+        });
+        async function checkStatus(id) {
+            const interval = setInterval(async () => {
+                try {
+                    const res = await fetch(`/api/api-status?id=${id}`);
+                    const data = await res.json();
+                    if (data.status === "succeeded") {
+                        clearInterval(interval);
+                        outputImage.src = data.output[0];
+                        downloadBtn.href = data.output[0];
+                        statusContainer.classList.add('hidden');
+                        resultContainer.classList.remove('hidden');
+                    } else if (data.status === "failed") {
+                        clearInterval(interval);
+                        alert("AI Generation Failed.");
+                        resetUI();
+                    } else {
+                        subStatusText.innerText = `Current Status: ${data.status}... 🧠`;
+                    }
+                } catch (err) {
+                    clearInterval(interval);
+                    alert("Error: " + err.message);
+                    resetUI();
+                }
+            }, 3000);
+        }
+        function resetUI() {
+            statusContainer.classList.add('hidden');
+            generateBtn.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
